@@ -4,6 +4,8 @@
 #
 # Ex: python wordfreq.py ch15-chowder 2
 
+import pickle
+import os
 import random
 import re
 import sys
@@ -52,47 +54,71 @@ def reinit_queue(queue):
         queue.popleft()
         queue.append("NULL")
 
-# Make sure we received an input file
-if len(sys.argv) < 2:
-        print "usage: python wordfreq.py input.txt"
-        sys.exit()
+def build_dict_from_file(filename, n):
+    # Read the input file specified on the command line
+    with open(filename, 'r') as myfile:
+        sample=myfile.read().replace('\n', ' ')
+    
+    # Remove double-quotes and parentheses, a pain to try to balance
+    sample = re.sub(r'["\(\)]', '', sample)
 
-if len(sys.argv) == 3:
-    n = int(sys.argv[2])
-else:
-    n = 1
+    dict = {}    
+    prevwords = deque([], n)
+    for i in range(0, n):
+        prevwords.append("NULL")
+    
+    # Initialize frequency table
+    for word in sample.split():
+        if contains_terminator(prevwords):
+            reinit_queue(prevwords)
+        dict[join_list(list(prevwords))] = []
+        prevwords.popleft()
+        prevwords.append(word)
+    
+    # Populate frequency table
+    prevwords = deque([], n)
+    for i in range(0, n):
+        prevwords.append("NULL")
+    
+    for word in sample.split():
+        if contains_terminator(prevwords):
+            reinit_queue(prevwords)
+        dict[join_list(list(prevwords))].append(word)
+        prevwords.popleft()
+        prevwords.append(word)
 
-# Read the input file specified on the command line
-with open(sys.argv[1], 'r') as myfile:
-    sample=myfile.read().replace('\n', ' ')
+    return dict
 
-# Remove double-quotes and parentheses, a pain to try to balance
-sample = re.sub(r'["\(\)]', '', sample)
+def main():
+    # Make sure we received an input file
+    if len(sys.argv) < 2:
+            print "usage: python wordfreq.py input.txt [1]"
+            sys.exit()
+    
+    # What order Markov chains are we using? Default to 1
+    if len(sys.argv) == 3:
+        n = int(sys.argv[2])
+    else:
+        n = 1
+    
+    # source file + markov order + file extension
+    cache_filename = sys.argv[1] + '.' + str(n) + '.pkl'
+    
+    # If we already have a cached version of the dictionary, use that
+    if os.path.exists(cache_filename):
+        pkl_file = open(cache_filename, 'rb')
+        dict = pickle.load(pkl_file)
+        pkl_file.close()
+    
+    # Otherwise, build from the file
+    else:
+        dict = build_dict_from_file(sys.argv[1], n)
+        pkl_file = open(cache_filename, 'wb')
+        pickle.dump(dict, pkl_file)
+        pkl_file.close()
+    
+    markov = Markov(n)
+    print markov.get_random_sentence(dict)
 
-dict = {}
-prevwords = deque([], n)
-for i in range(0, n):
-    prevwords.append("NULL")
-
-# Initialize frequency table
-for word in sample.split():
-    if contains_terminator(prevwords):
-        reinit_queue(prevwords)
-    dict[join_list(list(prevwords))] = []
-    prevwords.popleft()
-    prevwords.append(word)
-
-# Populate frequency table
-prevwords = deque([], n)
-for i in range(0, n):
-    prevwords.append("NULL")
-
-for word in sample.split():
-    if contains_terminator(prevwords):
-        reinit_queue(prevwords)
-    dict[join_list(list(prevwords))].append(word)
-    prevwords.popleft()
-    prevwords.append(word)
-
-markov = Markov(n)
-print markov.get_random_sentence(dict)
+if __name__ == '__main__':
+    main()
